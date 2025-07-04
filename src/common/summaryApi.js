@@ -1,4 +1,4 @@
-const backenDomain = "http://localhost:8000"
+const backenDomain = "https://mern-ecommerce-backend-xne7.onrender.com/"
 
 const summaryApi = {
     signUp : {
