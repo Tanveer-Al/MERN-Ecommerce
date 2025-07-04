@@ -34,17 +34,16 @@ const BannerProduct = () => {
       setCurrentImage((preve) => preve - 1);
     }
   }
-  useEffect(()=>{
-    const interval = setInterval(()=>{
-      if(desktopImage.length - 1 > currentImage){
-        nextImage()
-      }
-      else{
-        setCurrentImage(0)
-      }
-    },2000)
-    return ()=> clearInterval(interval)
-  },[currentImage]);
+  useEffect(() => {
+  const interval = setInterval(() => {
+    setCurrentImage((prevImage) =>
+      prevImage < desktopImage.length - 1 ? prevImage + 1 : 0
+    );
+  }, 2000);
+
+  return () => clearInterval(interval);
+}, [currentImage, desktopImage.length]);
+
   return (
     <div className="container mx-auto px-4 rounded ">
       <div className="h-60 md:h-72 w-full bg-slate-200 relative">

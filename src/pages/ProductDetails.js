@@ -17,22 +17,24 @@ const ProductDetails = () => {
     price: "",
     sellingPrice: "",
   });
-  const params = useParams();
+
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState("");
   const [zoomImageCordinate, setZoomImageCordinate] = useState({ x: 0, y: 0 });
   const [zoomImage, setZoomImage] = useState(false);
+
   const productImageListLoading = new Array(4).fill(null);
   const { fetchUserAddToCart } = useContext(Context);
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const params = useParams();
 
-  // Fetch product details from API
-  const fetchProductDetails = async () => {
+  // ✅ FIX: useCallback + dependency
+  const fetchProductDetails = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(summaryApi.productDetails.url, {
         method: summaryApi.productDetails.method,
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productId: params?.id }),
       });
 
@@ -40,49 +42,39 @@ const ProductDetails = () => {
 
       const dataResponse = await response.json();
       setData(dataResponse?.data);
-      setActiveImage(dataResponse?.data.productImage[0]);
+      setActiveImage(dataResponse?.data?.productImage?.[0] || "");
     } catch (error) {
       console.error("Error fetching product details:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [params?.id]);
 
+  // ✅ useEffect with correct dependency
   useEffect(() => {
     fetchProductDetails();
-  }, [params]);
+  }, [fetchProductDetails]);
 
-  // Handle zoom image logic
-  const handleZoomImage = useCallback(
-    (e) => {
-      setZoomImage(true);
-
-      // Get the bounding rectangle of the target element
-      const { left, top, width, height } = e.target.getBoundingClientRect();
-
-      // Calculate normalized coordinates (between 0 and 1)
-      const x = (e.clientX - left) / width;
-      const y = (e.clientY - top) / height;
-
-      // Set the zoom image coordinates
-      setZoomImageCordinate({ x, y });
-    },
-    [] // Removed dependency on zoomImageCordinate
-  );
+  const handleZoomImage = useCallback((e) => {
+    setZoomImage(true);
+    const { left, top, width, height } = e.target.getBoundingClientRect();
+    const x = (e.clientX - left) / width;
+    const y = (e.clientY - top) / height;
+    setZoomImageCordinate({ x, y });
+  }, []);
 
   const handleLeaveImageZoom = () => setZoomImage(false);
-
   const handleMouseEnterProduct = (imageURL) => setActiveImage(imageURL);
 
   const handleAddToCart = async (e, id) => {
     await addToCart(e, id);
-    fetchUserAddToCart()
+    fetchUserAddToCart();
   };
 
   const handleBuyProduct = async (e, id) => {
     await addToCart(e, id);
-    fetchUserAddToCart()
-    navigate("/cart")
+    fetchUserAddToCart();
+    navigate("/cart");
   };
 
   return (
@@ -105,9 +97,7 @@ const ProductDetails = () => {
                   style={{
                     backgroundImage: `url(${activeImage})`,
                     backgroundRepeat: "no-repeat",
-                    backgroundPosition: `${zoomImageCordinate.x * 100}% ${
-                      zoomImageCordinate.y * 100
-                    }%`,
+                    backgroundPosition: `${zoomImageCordinate.x * 100}% ${zoomImageCordinate.y * 100}%`,
                   }}
                 ></div>
               </div>
@@ -116,10 +106,10 @@ const ProductDetails = () => {
           <div className="h-full">
             {loading ? (
               <div className="flex gap-2 lg:flex-col overflow-scroll scrollbar-none h-full">
-                {productImageListLoading.map((el, index) => (
+                {productImageListLoading.map((_, index) => (
                   <div
-                    className="h-20 w-20 bg-slate-200 rounded animate-pulse"
                     key={index}
+                    className="h-20 w-20 bg-slate-200 rounded animate-pulse"
                   ></div>
                 ))}
               </div>
@@ -127,8 +117,8 @@ const ProductDetails = () => {
               <div className="flex gap-2 lg:flex-col overflow-scroll scrollbar-none h-full">
                 {data?.productImage?.map((imgURL) => (
                   <div
-                    className="h-20 w-20 bg-slate-200 rounded p-1"
                     key={imgURL}
+                    className="h-20 w-20 bg-slate-200 rounded p-1"
                   >
                     <img
                       src={imgURL}
@@ -147,11 +137,8 @@ const ProductDetails = () => {
         {/* Product Details Section */}
         {loading ? (
           <div className="grid gap-1 w-full">
-            {/* Skeleton loaders */}
             <p className="bg-slate-200 animate-pulse h-7 lg:h-8 w-full rounded-full"></p>
-            <h2 className="text-2xl lg:text-4xl font-medium bg-slate-200 animate-pulse w-full h-8">
-              {" "}
-            </h2>
+            <h2 className="text-2xl lg:text-4xl font-medium bg-slate-200 animate-pulse w-full h-8"> </h2>
             <p className="capitalize text-slate-400 bg-slate-200 animate-pulse w-full h-6"></p>
           </div>
         ) : (
@@ -159,32 +146,26 @@ const ProductDetails = () => {
             <p className="bg-red-200 text-red-600 px-2 rounded-full w-fit">
               {data.brandName}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-medium">
-              {data.productName}
-            </h2>
+            <h2 className="text-2xl lg:text-3xl font-medium">{data.productName}</h2>
             <p className="capitalize text-slate-400">{data.category}</p>
             <div className="text-red-600 flex items-center gap-1">
-              <FaStar />
-              <FaStar />
-              <FaStar />
-              <FaStar />
-              <FaStarHalf />
+              <FaStar /><FaStar /><FaStar /><FaStar /><FaStarHalf />
             </div>
             <div className="flex items-center gap-2 text-2xl lg:text-3xl font-medium my-1">
-              <p className="text-red-600">
-                {displayINRCurrency(data.sellingPrice)}
-              </p>
-              <p className="text-slate-400 line-through">
-                {displayINRCurrency(data.price)}
-              </p>
+              <p className="text-red-600">{displayINRCurrency(data.sellingPrice)}</p>
+              <p className="text-slate-400 line-through">{displayINRCurrency(data.price)}</p>
             </div>
             <div className="flex items-center gap-3 my-2">
-              <button className="border-2 border-red-600 rounded px-3 py-1 text-red-600 font-medium hover:bg-red-600 hover:text-white"
-              onClick={(e)=>handleBuyProduct(e,data?._id)}>
+              <button
+                className="border-2 border-red-600 rounded px-3 py-1 text-red-600 font-medium hover:bg-red-600 hover:text-white"
+                onClick={(e) => handleBuyProduct(e, data?._id)}
+              >
                 Buy Now
               </button>
-              <button className="border-2 border-red-600 rounded px-3 py-1 text-white bg-red-600 hover:text-red-600 hover:bg-white"
-              onClick={(e)=>handleAddToCart(e,data._id)}>
+              <button
+                className="border-2 border-red-600 rounded px-3 py-1 text-white bg-red-600 hover:text-red-600 hover:bg-white"
+                onClick={(e) => handleAddToCart(e, data?._id)}
+              >
                 Add To Cart
               </button>
             </div>
@@ -194,7 +175,7 @@ const ProductDetails = () => {
         )}
       </div>
 
-      {data.category && (
+      {data?.category && (
         <CategoryWiseProductDisplay
           category={data.category}
           heading="Recommended Product"

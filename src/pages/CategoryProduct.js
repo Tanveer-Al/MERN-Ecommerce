@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import productCategory from "../helpers/productCategory";
 import summaryApi from "../common/summaryApi";
@@ -7,35 +7,54 @@ import VerticalCart from "../components/verticalCart";
 const CategoryProduct = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sortBy, setSortBy] = useState("");
+  const [selectCategory, setSelectCategory] = useState({});
+  const [filterCategoryList, setFilterCategoryList] = useState([]);
+
   const navigate = useNavigate();
   const location = useLocation();
-  const URLSearch = new URLSearchParams(location.search);
+
+  const URLSearch = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const urlCategoryListInArray = URLSearch.getAll("category");
 
-  const urlCategoryListObject = {};
-  urlCategoryListInArray.forEach((el) => {
-    urlCategoryListObject[el] = true;
-  });
-
-  const [selectCategory, setSelectCategory] = useState(urlCategoryListObject);
-  const [filterCategoryList, setFilterCategoryList] = useState([]);
-  const [sortBy, setSortBy] = useState("");
-
-  const fetchData = async () => {
-    setLoading(true);
-    const response = await fetch(summaryApi.filterProduct.url, {
-      method: summaryApi.filterProduct.method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        category: filterCategoryList,
-      }),
+  useEffect(() => {
+    const obj = {};
+    urlCategoryListInArray.forEach((el) => {
+      obj[el] = true;
     });
-    const dataResponse = await response.json();
-    setData(dataResponse?.data || []);
-    setLoading(false);
-  };
+    setSelectCategory(obj);
+  }, [urlCategoryListInArray]);
+
+  // 🚀 FIXED: useCallback with correct dependencies
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(summaryApi.filterProduct.url, {
+        method: summaryApi.filterProduct.method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ category: filterCategoryList }),
+      });
+
+      const dataResponse = await response.json();
+      let fetchedData = dataResponse?.data || [];
+
+      if (sortBy) {
+        fetchedData = [...fetchedData].sort((a, b) =>
+          sortBy === "asc"
+            ? a.sellingPrice - b.sellingPrice
+            : b.sellingPrice - a.sellingPrice
+        );
+      }
+
+      setData(fetchedData);
+    } catch (error) {
+      console.error("Fetch error:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [filterCategoryList, sortBy]);
 
   const handleSelectCategory = (e) => {
     const { value, checked } = e.target;
@@ -45,49 +64,34 @@ const CategoryProduct = () => {
     }));
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [filterCategoryList]);
-
-  useEffect(() => {
-    const arrayOfCategory = Object.keys(selectCategory)
-      .map((categoryKeyName) => {
-        if (selectCategory[categoryKeyName]) {
-          return categoryKeyName;
-        }
-        return null;
-      })
-      .filter((el) => el);
-
-    setFilterCategoryList(arrayOfCategory);
-
-    const urlFormat = arrayOfCategory
-      .map((el, index) => `category=${el}`)
-      .join("&&");
-
-    navigate("/product-category?" + urlFormat);
-  }, [selectCategory]);
-
   const handleOneChangeSortBy = (e) => {
     const { value } = e.target;
     setSortBy(value);
-
-    setData((prev) =>
-      prev.sort((a, b) =>
-        value === "asc"
-          ? a.sellingPrice - b.sellingPrice
-          : b.sellingPrice - a.sellingPrice
-      )
-    );
   };
+
+  // ✅ Update filter list & URL
+  useEffect(() => {
+    const activeCategories = Object.keys(selectCategory).filter(
+      (key) => selectCategory[key]
+    );
+
+    setFilterCategoryList(activeCategories);
+
+    const urlFormat = activeCategories.map((el) => `category=${el}`).join("&");
+    navigate(`/product-category?${urlFormat}`);
+  }, [selectCategory, navigate]);
+
+  // ✅ Fetch data on category or sort change
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
     <div className="container mx-auto p-4">
-      {/* Desktop version */}
       <div className="hidden lg:grid grid-cols-[200px,1fr]">
-        {/* Left side */}
+        {/* Sidebar */}
         <div className="bg-white p-2 min-h-[calc(100vh-152px)] overflow-y-scroll">
-          {/* Sort by */}
+          {/* Sort */}
           <div>
             <h3 className="text-base uppercase font-medium text-slate-500 border-b pb-1 border-slate-300">SORT BY</h3>
             <form className="text-sm flex flex-col gap-2 py-2">
@@ -95,7 +99,7 @@ const CategoryProduct = () => {
                 <input
                   type="radio"
                   name="sortBy"
-                  value={"asc"}
+                  value="asc"
                   checked={sortBy === "asc"}
                   onChange={handleOneChangeSortBy}
                 />
@@ -105,7 +109,7 @@ const CategoryProduct = () => {
                 <input
                   type="radio"
                   name="sortBy"
-                  value={"dsc"}
+                  value="dsc"
                   checked={sortBy === "dsc"}
                   onChange={handleOneChangeSortBy}
                 />
@@ -114,7 +118,7 @@ const CategoryProduct = () => {
             </form>
           </div>
 
-          {/* Filter by */}
+          {/* Filter */}
           <div>
             <h3 className="text-base uppercase font-medium text-slate-500 border-b pb-1 border-slate-300">Category</h3>
             <form className="text-sm flex flex-col gap-2 py-2">
@@ -122,11 +126,10 @@ const CategoryProduct = () => {
                 <div className="flex items-center gap-3" key={index}>
                   <input
                     type="checkbox"
-                    name={"category"}
-                    checked={selectCategory[categoryName?.value]}
+                    name="category"
+                    checked={selectCategory[categoryName?.value] || false}
                     value={categoryName?.value}
-                    id={categoryName.value}
-                    className=""
+                    id={categoryName?.value}
                     onChange={handleSelectCategory}
                   />
                   <label htmlFor={categoryName?.value}>{categoryName?.label}</label>
@@ -136,11 +139,17 @@ const CategoryProduct = () => {
           </div>
         </div>
 
-        {/* Right side */}
+        {/* Product grid */}
         <div className="px-4">
-          <p className="font-medium text-slate-800 text-lg my-2">Filter Result : {data.length}</p>
+          <p className="font-medium text-slate-800 text-lg my-2">
+            Filter Result : {data.length}
+          </p>
           <div className="overflow-y-scroll max-h-[calc(100vh-200px)]">
-            {data.length !== 0 && !loading && <VerticalCart data={data} loading={loading} />}
+            {loading && <p>Loading...</p>}
+            {!loading && data.length === 0 && <p>No products found.</p>}
+            {!loading && data.length > 0 && (
+              <VerticalCart data={data} loading={loading} />
+            )}
           </div>
         </div>
       </div>
